@@ -87,6 +87,25 @@ scripts/check-secrets.mjs
 - AI 密钥只放 Supabase Edge Function secrets：`supabase secrets set AI_API_KEY=...`。
 - GitHub 仅操作本仓库，使用 deploy key / SSH agent；不读取、不输出任何私钥。
 
+## 打 APK（EAS Build）
+
+```bash
+npx eas-cli build --platform android --profile preview
+```
+
+**关键：构建环境必须能读到 `EXPO_PUBLIC_SUPABASE_URL` / `EXPO_PUBLIC_SUPABASE_ANON_KEY`。**
+`.env.local` 被 git 忽略，**不会上传到 EAS**，所以这两个值要配在 EAS 环境变量里：
+
+```bash
+npx eas-cli env:create --name EXPO_PUBLIC_SUPABASE_URL --value "<url>" \
+  --environment preview --visibility plaintext --scope project --type string
+npx eas-cli env:create --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value "<anon-key>" \
+  --environment preview --visibility plaintext --scope project --type string
+```
+
+漏配的表现：APK 装上后**点开立刻闪退**（`src/lib/env.ts` 启动即校验，缺值直接抛错）。
+`eas.json` 的 profile 已声明 `"environment": "preview"`，保证构建时能取到这些变量。
+
 ## 下一步
 
 - **T2**：`profiles` / `medicine_boxes` / `box_members` 迁移 + RLS 辅助函数 + 建箱/加入/重置邀请码/转让/解散等 RPC
