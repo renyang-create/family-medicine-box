@@ -1,13 +1,14 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import type { ReactNode } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { signOut } from '@/features/auth/api';
 import { useAuth } from '@/providers/auth-provider';
 import { AGENT_DISCLAIMER_TOP } from '@/shared/constants/agent';
 import { BOX_MEMBER_LIMIT, INVITE_CODE_LENGTH } from '@/shared/constants/config';
 import { AppText, Button, Card, Screen, colors, spacing } from '@/shared/ui';
+import { confirmDialog, showMessage } from '@/shared/utils/dialog';
 import { toUserMessage } from '@/shared/utils/error-message';
 
 type RowProps = {
@@ -53,19 +54,20 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { session } = useAuth();
 
-  function handleSignOut() {
-    Alert.alert('退出登录', '退出后需要重新登录才能看到药箱。', [
-      { text: '取消', style: 'cancel' },
-      {
-        text: '退出',
-        style: 'destructive',
-        onPress: () => {
-          void signOut().catch((cause) => {
-            Alert.alert('退出失败', toUserMessage(cause));
-          });
-        },
-      },
-    ]);
+  async function handleSignOut() {
+    const confirmed = await confirmDialog({
+      title: '退出登录',
+      message: '退出后需要重新登录才能看到药箱。',
+      confirmText: '退出',
+      destructive: true,
+    });
+    if (!confirmed) return;
+
+    try {
+      await signOut();
+    } catch (cause) {
+      showMessage('退出失败', toUserMessage(cause));
+    }
   }
 
   return (
