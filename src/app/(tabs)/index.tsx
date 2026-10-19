@@ -1,18 +1,23 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
+import { useMyBoxes } from '@/features/boxes/hooks';
 import { useAuth } from '@/providers/auth-provider';
 import { AGENT_NAME, HOME_AGENT_CTA, HOME_AGENT_SUB } from '@/shared/constants/agent';
 import { AppText, Button, EmptyState, Screen, colors, radius, spacing } from '@/shared/ui';
+import { formatInviteCodeForDisplay } from '@/shared/utils/normalize-invite-code';
 
 /**
  * 首页：顶部全局搜索 + 中部我加入的药箱列表 + 底部任阳入口。
- * T1 只做结构与文案；药箱数据、搜索、过期徽标分别在 T3 / T6 接入。
+ * T3 已接真实数据；全局搜索与过期徽标分别在 T4 / T6 接入。
  */
 export default function HomeScreen() {
   const router = useRouter();
   const { session } = useAuth();
+  const boxesQuery = useMyBoxes();
+
+  const boxes = boxesQuery.data ?? [];
 
   return (
     <Screen>
@@ -33,22 +38,79 @@ export default function HomeScreen() {
         <Ionicons color={colors.textSubtle} name="search-outline" size={18} />
         <TextInput
           editable={false}
-          placeholder="搜索药品名称或标签"
+          placeholder="搜索药品名称或标签（T4 接入）"
           placeholderTextColor={colors.textSubtle}
           style={styles.searchInput}
         />
       </View>
-      <AppText variant="caption">
-        全局搜索在 T3 接入：只检索你可访问药箱内的药品与标签，不会命中无权限药箱。
-      </AppText>
 
-      <EmptyState
-        title="还没有药箱"
-        description="创建一个药箱，或用 6 位邀请码加入家人的药箱（每个药箱最多 5 人）。"
-      >
-        <Button disabled label="创建药箱（T3）" onPress={() => {}} />
-        <Button disabled label="用邀请码加入（T3）" onPress={() => {}} variant="secondary" />
-      </EmptyState>
+      {boxesQuery.isLoading ? (
+        <View style={styles.loading}>
+          <ActivityIndicator color={colors.primary} />
+          <AppText variant="caption">正在读取药箱…</AppText>
+        </View>
+      ) : boxesQuery.isError ? (
+        <EmptyState description="可能是网络问题，点下面重试" title="药箱列表加载失败">
+          <Button label="重试" onPress={() => void boxesQuery.refetch()} variant="secondary" />
+        </EmptyState>
+      ) : boxes.length === 0 ? (
+        <EmptyState
+          description="创建一个药箱，或用 6 位邀请码加入家人的药箱（每个药箱最多 5 人）。"
+          title="还没有药箱"
+        >
+          <Button label="创建药箱" onPress={() => router.push('/box/new')} />
+          <Button
+            label="用邀请码加入"
+            onPress={() => router.push('/box/join')}
+            variant="secondary"
+          />
+        </EmptyState>
+      ) : (
+        <View style={styles.list}>
+          {boxes.map((box) => (
+            <Pressable
+              accessibilityRole="button"
+              key={box.boxId}
+              onPress={() => router.push(`/box/${box.boxId}`)}
+              style={({ pressed }) => [styles.boxCard, pressed ? styles.pressed : null]}
+            >
+              <View style={styles.boxTop}>
+                <AppText variant="subtitle" style={styles.boxName}>
+                  {box.name}
+                </AppText>
+                {box.role === 'creator' ? (
+                  <View style={styles.roleTag}>
+                    <AppText color={colors.primary} variant="caption">
+                      创建者
+                    </AppText>
+                  </View>
+                ) : null}
+              </View>
+
+              <AppText variant="caption">
+                成员 {box.memberCount}/5
+                {box.inviteCode ? ` · 邀请码 ${formatInviteCodeForDisplay(box.inviteCode)}` : ''}
+              </AppText>
+
+              <View style={styles.boxFooter}>
+                <AppText color={colors.primary} variant="caption">
+                  查看药品
+                </AppText>
+                <Ionicons color={colors.textSubtle} name="chevron-forward" size={16} />
+              </View>
+            </Pressable>
+          ))}
+
+          <View style={styles.actions}>
+            <Button label="创建药箱" onPress={() => router.push('/box/new')} />
+            <Button
+              label="用邀请码加入"
+              onPress={() => router.push('/box/join')}
+              variant="secondary"
+            />
+          </View>
+        </View>
+      )}
 
       <Pressable
         accessibilityRole="button"
@@ -91,6 +153,33 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
   },
   searchInput: { color: colors.text, flex: 1, fontSize: 15, paddingVertical: 0 },
+  loading: { alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xl },
+  list: { gap: spacing.md },
+  boxCard: {
+    backgroundColor: colors.background,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: spacing.xs,
+    padding: spacing.lg,
+  },
+  pressed: { opacity: 0.85 },
+  boxTop: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm },
+  boxName: { flex: 1 },
+  roleTag: {
+    backgroundColor: '#EFF8FF',
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+  },
+  boxFooter: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.xs,
+    justifyContent: 'flex-end',
+    marginTop: spacing.xs,
+  },
+  actions: { gap: spacing.sm, marginTop: spacing.sm },
   agentCard: {
     alignItems: 'center',
     backgroundColor: colors.surface,
@@ -101,7 +190,6 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     padding: spacing.lg,
   },
-  pressed: { opacity: 0.85 },
   agentAvatar: {
     alignItems: 'center',
     backgroundColor: colors.primary,
