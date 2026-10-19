@@ -47,7 +47,11 @@ export default function RemindersScreen() {
     <Screen>
       <PageHeader
         onBack={() => router.back()}
-        subtitle="只在 App 内提醒，不会发系统通知"
+        subtitle={
+          overview.data
+            ? `只在 App 内提醒 · 已检查 ${overview.data.length} 件药品`
+            : '只在 App 内提醒，不会发系统通知'
+        }
         title="药品提醒"
       />
 
@@ -61,7 +65,10 @@ export default function RemindersScreen() {
           <Button label="重试" onPress={() => void overview.refetch()} variant="secondary" />
         </EmptyState>
       ) : groups.total === 0 ? (
-        <EmptyState description="所有药品都在有效期内，30 天内到期的会出现在这里。" title="暂无提醒" />
+        <EmptyState
+          description={`已检查 ${overview.data?.length ?? 0} 件药品。30 天内到期的会出现在这里；如果药品没填有效期，就不会被提醒。`}
+          title="暂无提醒"
+        />
       ) : (
         <>
           {groups.expired.length > 0 ? (
