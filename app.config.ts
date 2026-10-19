@@ -51,7 +51,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   experiments: {
     reactCompiler: true,
   },
+  // EAS 项目归属与 ID（由 `eas init` 生成）。
+  // projectId 不是密钥，可以进仓库；换项目时同步更新这里。
+  owner: 'renyang',
   extra: {
-    // EAS projectId 在 `eas init` 后由 EAS 写入，不要在仓库里硬编码
+    eas: {
+      projectId: 'de89dd8d-ea6c-47c9-b886-5395128ad438',
+    },
   },
 });
