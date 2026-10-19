@@ -27,3 +27,11 @@ export const AGENT_QUOTA_EXCEEDED = '任阳今天的问题额度用完了，明�
 
 /** 上游不可用时的兜底话术（不暴露任何上游错误细节） */
 export const AGENT_UNAVAILABLE = '任阳现在有点忙，请稍后再问';
+
+/** 空态推荐问题：点了直接发问 */
+export const AGENT_PRESET_QUESTIONS = [
+  '过期药还能吃吗？',
+  '漏吃一次怎么办？',
+  '服药期间能喝酒吗？',
+  '退烧药多久吃一次？',
+];
