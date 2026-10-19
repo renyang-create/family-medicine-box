@@ -31,8 +31,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       backgroundImage: './assets/images/android-icon-background.png',
       monochromeImage: './assets/images/android-icon-monochrome.png',
     },
-    // 吃药提醒（T8）所需通知权限；精确闹钟相关权限在 T8 评估后再补
-    permissions: ['POST_NOTIFICATIONS'],
+    // 吃药提醒所需权限：
+    // POST_NOTIFICATIONS = Android 13+ 通知权限
+    // SCHEDULE_EXACT_ALARM = 精确到点的本地提醒（用户可在系统设置里撤销）
+    permissions: ['POST_NOTIFICATIONS', 'SCHEDULE_EXACT_ALARM'],
   },
   web: {
     favicon: './assets/images/favicon.png',

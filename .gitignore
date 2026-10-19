@@ -42,5 +42,8 @@ yarn-error.*
 coverage/
 *.tsbuildinfo
 
+# Supabase CLI 的本地临时文件（link 后生成，含项目引用信息）
+supabase/.temp/
+
 # macOS
 .DS_Store
