@@ -8,6 +8,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider } from '@/providers/auth-provider';
+import { NotificationBridge } from '@/providers/notification-bridge';
 import { QueryProvider } from '@/providers/query-provider';
 import { colors } from '@/shared/ui';
 
@@ -38,6 +39,7 @@ export default function RootLayout() {
         <QueryProvider>
           <AuthProvider>
             <ThemeProvider value={navigationTheme}>
+              <NotificationBridge />
               <Stack
                 screenOptions={{
                   headerShown: false,

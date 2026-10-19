@@ -1,3 +1,4 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
@@ -5,6 +6,7 @@ import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { useMyBoxes } from '@/features/boxes/hooks';
 import { ExpiryBadge } from '@/features/medicines/expiry-badge';
 import { useDeleteMedicine, useMedicine } from '@/features/medicines/hooks';
+import { usePlan } from '@/features/plans/plan-hooks';
 import { useRecordUsage, useUndoUsage, useUsageLogs } from '@/features/medicines/usage-hooks';
 import type { UsageLog } from '@/features/medicines/usage-api';
 import { useAuth } from '@/providers/auth-provider';
@@ -80,6 +82,7 @@ export default function MedicineDetailScreen() {
   const isCreator = boxesQuery.data?.find((item) => item.boxId === boxId)?.role === 'creator';
 
   const logsQuery = useUsageLogs(medicineId ?? '');
+  const planQuery = usePlan(medicineId ?? '');
   const recordUsage = useRecordUsage(boxId ?? '', medicineId ?? '');
   const undoUsage = useUndoUsage(boxId ?? '', medicineId ?? '');
   const deleteMedicine = useDeleteMedicine(boxId ?? '');
@@ -238,6 +241,23 @@ export default function MedicineDetailScreen() {
         </AppText>
       </Card>
 
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => router.push(`/box/${boxId}/medicine/${medicine.id}/plan`)}
+        style={({ pressed }) => [styles.planCard, pressed ? styles.pressed : null]}
+      >
+        <Ionicons color={colors.textMuted} name="alarm-outline" size={18} />
+        <View style={styles.planText}>
+          <AppText variant="bodyStrong">吃药提醒</AppText>
+          <AppText variant="caption">
+            {planQuery.data
+              ? `每天 ${planQuery.data.timesOfDay.join('、')} · 每次 ${formatQuantity(planQuery.data.dosageAmount)}${unit}`
+              : '还没有设置（仅你自己可见）'}
+          </AppText>
+        </View>
+        <Ionicons color={colors.textSubtle} name="chevron-forward" size={16} />
+      </Pressable>
+
       <Card style={styles.historyCard}>
         <View style={styles.historyHeader}>
           <AppText variant="subtitle">服药历史</AppText>
@@ -295,6 +315,19 @@ const styles = StyleSheet.create({
   value: { flex: 1, textAlign: 'right' },
   recordCard: { gap: spacing.md },
   recordRow: { flexDirection: 'row', gap: spacing.md },
+  planCard: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  planText: { flex: 1, gap: 2 },
+  pressed: { opacity: 0.85 },
   flex: { width: 120 },
   flexLarge: { flex: 1 },
   historyCard: { gap: spacing.sm },
