@@ -1,23 +1,28 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
-import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { useMemo } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
 import { useMyBoxes } from '@/features/boxes/hooks';
+import { useMedicineOverview } from '@/features/medicines/overview-hooks';
 import { useAuth } from '@/providers/auth-provider';
 import { AGENT_NAME, HOME_AGENT_CTA, HOME_AGENT_SUB } from '@/shared/constants/agent';
+import { groupByExpiry } from '@/shared/domain/expiry-groups';
 import { AppText, Button, EmptyState, Screen, colors, radius, spacing } from '@/shared/ui';
 import { formatInviteCodeForDisplay } from '@/shared/utils/normalize-invite-code';
 
 /**
- * 首页：顶部全局搜索 + 中部我加入的药箱列表 + 底部任阳入口。
- * T3 已接真实数据；全局搜索与过期徽标分别在 T4 / T6 接入。
+ * 首页：顶部全局搜索 + 过期徽标；中部我加入的药箱；底部任阳入口。
  */
 export default function HomeScreen() {
   const router = useRouter();
   const { session } = useAuth();
   const boxesQuery = useMyBoxes();
+  const overview = useMedicineOverview();
 
   const boxes = boxesQuery.data ?? [];
+  const alertGroups = useMemo(() => groupByExpiry(overview.data ?? []), [overview.data]);
+  const alertCount = alertGroups.total;
 
   return (
     <Screen>
@@ -26,23 +31,36 @@ export default function HomeScreen() {
           <AppText variant="title">我的药箱</AppText>
           <AppText variant="caption">{session?.user.email ?? '未登录'}</AppText>
         </View>
-        {/* 顶部徽标：T6 接入「临期 + 过期」数量 */}
-        <View style={styles.badge}>
-          <AppText variant="caption" color={colors.textSubtle}>
-            提醒
+
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push('/reminders')}
+          style={({ pressed }) => [
+            styles.badge,
+            alertCount > 0 ? styles.badgeAlert : null,
+            pressed ? styles.pressed : null,
+          ]}
+        >
+          <AppText
+            color={alertCount > 0 ? colors.onPrimary : colors.textSubtle}
+            variant="caption"
+          >
+            {alertCount > 0 ? `提醒 ${alertCount}` : '提醒'}
           </AppText>
-        </View>
+        </Pressable>
       </View>
 
-      <View style={styles.searchWrapper}>
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => router.push('/search')}
+        style={({ pressed }) => [styles.searchBar, pressed ? styles.pressed : null]}
+      >
         <Ionicons color={colors.textSubtle} name="search-outline" size={18} />
-        <TextInput
-          editable={false}
-          placeholder="搜索药品名称或标签（T4 接入）"
-          placeholderTextColor={colors.textSubtle}
-          style={styles.searchInput}
-        />
-      </View>
+        <AppText color={colors.textSubtle} style={styles.searchText} variant="body">
+          搜索药品名称
+        </AppText>
+        <Ionicons color={colors.textSubtle} name="chevron-forward" size={16} />
+      </Pressable>
 
       {boxesQuery.isLoading ? (
         <View style={styles.loading}>
@@ -141,7 +159,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
   },
-  searchWrapper: {
+  badgeAlert: { backgroundColor: colors.danger },
+  pressed: { opacity: 0.85 },
+  searchBar: {
     alignItems: 'center',
     backgroundColor: colors.surface,
     borderColor: colors.border,
@@ -152,7 +172,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
     paddingHorizontal: spacing.md,
   },
-  searchInput: { color: colors.text, flex: 1, fontSize: 15, paddingVertical: 0 },
+  searchText: { flex: 1 },
   loading: { alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xl },
   list: { gap: spacing.md },
   boxCard: {
@@ -163,7 +183,6 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     padding: spacing.lg,
   },
-  pressed: { opacity: 0.85 },
   boxTop: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm },
   boxName: { flex: 1 },
   roleTag: {
