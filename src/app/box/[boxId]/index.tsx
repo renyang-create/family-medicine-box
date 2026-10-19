@@ -1,19 +1,33 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { useMemo } from 'react';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { useMyBoxes } from '@/features/boxes/hooks';
+import { useMedicines } from '@/features/medicines/hooks';
+import { MedicineRow } from '@/features/medicines/medicine-row';
+import { getExpiryStatus } from '@/shared/domain/expiry';
+import { sortMedicines } from '@/shared/domain/medicine-sort';
 import { AppText, Button, Card, EmptyState, PageHeader, Screen, colors, spacing } from '@/shared/ui';
 import { formatInviteCodeForDisplay } from '@/shared/utils/normalize-invite-code';
 
 /**
- * 药箱详情。T3 只显示基本信息；
- * 药品列表 / 添加药品 / 标签筛选在 T4 接入。
+ * 药箱详情：药品列表（过期置顶 + 最近服药倒序）。
  */
 export default function BoxDetailScreen() {
   const router = useRouter();
   const { boxId } = useLocalSearchParams<{ boxId: string }>();
+
   const boxesQuery = useMyBoxes();
   const box = boxesQuery.data?.find((item) => item.boxId === boxId);
+
+  const medicinesQuery = useMedicines(boxId ?? '');
+  const medicines = medicinesQuery.data;
+
+  const sorted = useMemo(() => sortMedicines(medicines ?? []), [medicines]);
+  const expiredCount = useMemo(
+    () => (medicines ?? []).filter((item) => getExpiryStatus(item.expireDate) === 'expired').length,
+    [medicines],
+  );
 
   if (!box) {
     return (
@@ -33,40 +47,73 @@ export default function BoxDetailScreen() {
     <Screen>
       <PageHeader
         onBack={() => router.back()}
-        subtitle={`成员 ${box.memberCount}/5`}
+        subtitle={`成员 ${box.memberCount}/5${box.inviteCode ? ` · 邀请码 ${formatInviteCodeForDisplay(box.inviteCode)}` : ''}`}
         title={box.name}
       />
 
-      <Card style={styles.info}>
-        <View style={styles.row}>
-          <AppText variant="caption">我的身份</AppText>
-          <AppText variant="bodyStrong">{box.role === 'creator' ? '创建者' : '成员'}</AppText>
-        </View>
+      {expiredCount > 0 ? (
+        <Card style={styles.alert}>
+          <View style={styles.alertBar} />
+          <AppText color={colors.dangerText} variant="bodyStrong">
+            有 {expiredCount} 件药品已过期，已置顶显示
+          </AppText>
+        </Card>
+      ) : null}
 
-        {box.inviteCode ? (
-          <View style={styles.row}>
-            <AppText variant="caption">邀请码</AppText>
-            <AppText variant="bodyStrong">{formatInviteCodeForDisplay(box.inviteCode)}</AppText>
-          </View>
-        ) : null}
-      </Card>
-
-      <EmptyState
-        description="药品列表、添加药品、标签筛选将在 T4 接入。"
-        title="这个药箱还没有药品"
+      <Button
+        label="+ 添加药品"
+        onPress={() => router.push(`/box/${boxId}/medicine/new`)}
+        variant="secondary"
       />
+
+      {medicinesQuery.isLoading ? (
+        <View style={styles.loading}>
+          <ActivityIndicator color={colors.primary} />
+          <AppText variant="caption">正在读取药品…</AppText>
+        </View>
+      ) : medicinesQuery.isError ? (
+        <EmptyState description="可能是网络问题" title="药品列表加载失败">
+          <Button label="重试" onPress={() => void medicinesQuery.refetch()} variant="secondary" />
+        </EmptyState>
+      ) : sorted.length === 0 ? (
+        <EmptyState
+          description="把家里的药录进来，过期会自动标红提醒。"
+          title="这个药箱还没有药品"
+        >
+          <Button
+            label="添加第一件药品"
+            onPress={() => router.push(`/box/${boxId}/medicine/new`)}
+          />
+        </EmptyState>
+      ) : (
+        <View style={styles.list}>
+          {sorted.map((medicine) => (
+            <MedicineRow
+              key={medicine.id}
+              medicine={medicine}
+              onPress={() => router.push(`/box/${boxId}/medicine/${medicine.id}`)}
+            />
+          ))}
+        </View>
+      )}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  info: { gap: spacing.sm },
-  row: {
+  alert: {
     alignItems: 'center',
-    borderBottomColor: colors.border,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    backgroundColor: colors.dangerBackground,
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: spacing.xs,
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
   },
+  alertBar: {
+    backgroundColor: colors.danger,
+    borderRadius: 2,
+    height: 28,
+    width: 6,
+  },
+  loading: { alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xl },
+  list: { gap: spacing.md },
 });
