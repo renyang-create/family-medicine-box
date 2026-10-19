@@ -1,0 +1,35 @@
+name: verify
+
+# 什么时候跑：推到 main、或任何 PR
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# 同一个分支连续推送时，取消上一次还没跑完的，省时间
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 拉代码
+        uses: actions/checkout@v4
+
+      - name: 装 Node（项目要求 >= 22.13）
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 装依赖（严格按 package-lock.json）
+        run: npm ci
+
+      # 与本地同一条命令：typecheck + lint + vitest + check:secrets
+      # 不需要任何 secret：.env.local 不入库，CI 里也不存在，四个环节都不依赖真实环境变量
+      - name: 质量门禁
+        run: npm run verify
