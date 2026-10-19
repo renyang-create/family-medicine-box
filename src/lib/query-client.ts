@@ -26,8 +26,12 @@ export const queryClient = new QueryClient({
   },
 });
 
+/**
+ * 缓存 key 带版本号：药品结构变化（如新增 tags）时 +1，
+ * 让旧版本留下的缓存直接失效，避免读到缺字段的旧对象。
+ */
 export const queryPersister = createAsyncStoragePersister({
   storage: AsyncStorage,
-  key: 'fmb.query.cache.v1',
+  key: 'fmb.query.cache.v3',
   throttleTime: 1_000,
 });

@@ -9,6 +9,7 @@ import { useDeleteMedicine, useMedicine } from '@/features/medicines/hooks';
 import { usePlan } from '@/features/plans/plan-hooks';
 import { useRecordUsage, useUndoUsage, useUsageLogs } from '@/features/medicines/usage-hooks';
 import type { UsageLog } from '@/features/medicines/usage-api';
+import { isPendingMedicineId } from '@/features/sync/apply-outbox';
 import { useAuth } from '@/providers/auth-provider';
 import {
   AppText,
@@ -78,11 +79,15 @@ export default function MedicineDetailScreen() {
   const medicineQuery = useMedicine(medicineId ?? '');
   const medicine = medicineQuery.data;
 
+  // 离线新建的药品只有本地临时 id，服务端相关接口一律不要打
+  const isPending = isPendingMedicineId(medicineId);
+  const serverId = isPending ? '' : (medicineId ?? '');
+
   const boxesQuery = useMyBoxes();
   const isCreator = boxesQuery.data?.find((item) => item.boxId === boxId)?.role === 'creator';
 
-  const logsQuery = useUsageLogs(medicineId ?? '');
-  const planQuery = usePlan(medicineId ?? '');
+  const logsQuery = useUsageLogs(serverId);
+  const planQuery = usePlan(serverId);
   const recordUsage = useRecordUsage(boxId ?? '', medicineId ?? '');
   const undoUsage = useUndoUsage(boxId ?? '', medicineId ?? '');
   const deleteMedicine = useDeleteMedicine(boxId ?? '');
@@ -194,91 +199,112 @@ export default function MedicineDetailScreen() {
         <InfoRow label="有效期" value={medicine.expireDate ?? '未填写'} />
         <InfoRow label="生产日期" value={medicine.producedOn ?? '未填写'} />
         <InfoRow label="生产批次" value={medicine.batchNo ?? '未填写'} />
+        <InfoRow
+          label="症状标签"
+          value={medicine.tags.length > 0 ? medicine.tags.join('、') : '未填写'}
+        />
         <InfoRow label="备注" value={medicine.notes ?? '未填写'} />
       </Card>
 
-      <Card style={styles.recordCard}>
-        <AppText variant="subtitle">记录本次服药</AppText>
-        <View style={styles.recordRow}>
-          <View style={styles.flex}>
-            <TextField
-              keyboardType="decimal-pad"
-              label={`本次剂量${unit ? `（${unit}）` : ''}`}
-              onChangeText={setDosage}
-              placeholder="1"
-              value={dosage}
-            />
-          </View>
-          <View style={styles.flexLarge}>
-            <TextField
-              label="备注"
-              maxLength={60}
-              onChangeText={setNote}
-              placeholder="选填，比如「饭后」"
-              value={note}
-            />
-          </View>
-        </View>
-
-        {recordError ? (
-          <AppText color={colors.dangerText} variant="caption">
-            {recordError}
+      {isPending ? (
+        <Card style={styles.pendingCard}>
+          <AppText color={colors.warningText} variant="bodyStrong">
+            这条药品是离线新建的，还没同步到服务器
           </AppText>
-        ) : null}
-        {feedback ? (
-          <AppText color={colors.success} variant="caption">
-            {feedback}
-          </AppText>
-        ) : null}
-
-        <Button
-          disabled={recordUsage.isPending}
-          label={recordUsage.isPending ? '记录中…' : '记录本次服药'}
-          onPress={handleRecord}
-        />
-        <AppText variant="caption">
-          记录后会自动扣减库存；库存为 0 时只写记录、不再扣减。
-        </AppText>
-      </Card>
-
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => router.push(`/box/${boxId}/medicine/${medicine.id}/plan`)}
-        style={({ pressed }) => [styles.planCard, pressed ? styles.pressed : null]}
-      >
-        <Ionicons color={colors.textMuted} name="alarm-outline" size={18} />
-        <View style={styles.planText}>
-          <AppText variant="bodyStrong">吃药提醒</AppText>
           <AppText variant="caption">
-            {planQuery.data
-              ? `每天 ${planQuery.data.timesOfDay.join('、')} · 每次 ${formatQuantity(planQuery.data.dosageAmount)}${unit}`
-              : '还没有设置（仅你自己可见）'}
+            联网后会自动补同步；在那之前不能记录服药、也不能设提醒。可以点「编辑药品」继续修改。
           </AppText>
-        </View>
-        <Ionicons color={colors.textSubtle} name="chevron-forward" size={16} />
-      </Pressable>
+        </Card>
+      ) : null}
 
-      <Card style={styles.historyCard}>
-        <View style={styles.historyHeader}>
-          <AppText variant="subtitle">服药历史</AppText>
-          <AppText variant="caption">{logs.length > 0 ? `最近 ${logs.length} 条` : ''}</AppText>
-        </View>
+      {isPending ? null : (
+        <>
+          <Card style={styles.recordCard}>
+            <AppText variant="subtitle">记录本次服药</AppText>
+            <View style={styles.recordRow}>
+              <View style={styles.flex}>
+                <TextField
+                  keyboardType="decimal-pad"
+                  label={`本次剂量${unit ? `（${unit}）` : ''}`}
+                  onChangeText={setDosage}
+                  placeholder="1"
+                  value={dosage}
+                />
+              </View>
+              <View style={styles.flexLarge}>
+                <TextField
+                  label="备注"
+                  maxLength={60}
+                  onChangeText={setNote}
+                  placeholder="选填，比如「饭后」"
+                  value={note}
+                />
+              </View>
+            </View>
 
-        {logsQuery.isLoading ? (
-          <ActivityIndicator color={colors.primary} />
-        ) : logs.length === 0 ? (
-          <AppText variant="caption">还没有服药记录</AppText>
-        ) : (
-          logs.map((log) => (
-            <UsageLogRow
-              canUndo={log.userId === session?.user.id || isCreator}
-              key={log.id}
-              log={log}
-              onUndo={() => void handleUndo(log.id)}
+            {recordError ? (
+              <AppText color={colors.dangerText} variant="caption">
+                {recordError}
+              </AppText>
+            ) : null}
+            {feedback ? (
+              <AppText color={colors.success} variant="caption">
+                {feedback}
+              </AppText>
+            ) : null}
+
+            <Button
+              disabled={recordUsage.isPending}
+              label={recordUsage.isPending ? '记录中…' : '记录本次服药'}
+              onPress={handleRecord}
             />
-          ))
-        )}
-      </Card>
+            <AppText variant="caption">
+              记录后会自动扣减库存；库存为 0 时只写记录、不再扣减。
+            </AppText>
+          </Card>
+
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push(`/box/${boxId}/medicine/${medicine.id}/plan`)}
+            style={({ pressed }) => [styles.planCard, pressed ? styles.pressed : null]}
+          >
+            <Ionicons color={colors.textMuted} name="alarm-outline" size={18} />
+            <View style={styles.planText}>
+              <AppText variant="bodyStrong">吃药提醒</AppText>
+              <AppText variant="caption">
+                {planQuery.data
+                  ? `每天 ${planQuery.data.timesOfDay.join('、')} · 每次 ${formatQuantity(planQuery.data.dosageAmount)}${unit}`
+                  : '还没有设置（仅你自己可见）'}
+              </AppText>
+            </View>
+            <Ionicons color={colors.textSubtle} name="chevron-forward" size={16} />
+          </Pressable>
+
+          <Card style={styles.historyCard}>
+            <View style={styles.historyHeader}>
+              <AppText variant="subtitle">服药历史</AppText>
+              <AppText variant="caption">
+                {logs.length > 0 ? `最近 ${logs.length} 条` : ''}
+              </AppText>
+            </View>
+
+            {logsQuery.isLoading ? (
+              <ActivityIndicator color={colors.primary} />
+            ) : logs.length === 0 ? (
+              <AppText variant="caption">还没有服药记录</AppText>
+            ) : (
+              logs.map((log) => (
+                <UsageLogRow
+                  canUndo={log.userId === session?.user.id || isCreator}
+                  key={log.id}
+                  log={log}
+                  onUndo={() => void handleUndo(log.id)}
+                />
+              ))
+            )}
+          </Card>
+        </>
+      )}
 
       <Button
         label="编辑药品"
@@ -297,6 +323,11 @@ export default function MedicineDetailScreen() {
 const styles = StyleSheet.create({
   loading: { alignItems: 'center', paddingVertical: spacing.xl },
   info: { gap: spacing.sm },
+  pendingCard: {
+    backgroundColor: colors.warningBackground,
+    borderColor: colors.warningBackground,
+    gap: spacing.xs,
+  },
   titleRow: {
     alignItems: 'center',
     borderBottomColor: colors.border,

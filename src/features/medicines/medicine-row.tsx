@@ -1,8 +1,9 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { isPendingMedicineId } from '@/features/sync/apply-outbox';
 import { EXPIRY_COLORS } from '@/shared/constants/expiry';
 import { getExpiryStatus } from '@/shared/domain/expiry';
-import { AppText, colors, radius, spacing } from '@/shared/ui';
+import { AppText, Chip, colors, radius, spacing } from '@/shared/ui';
 import { formatLocalDateTime } from '@/shared/utils/datetime';
 import { formatQuantity } from '@/shared/utils/number';
 
@@ -28,6 +29,10 @@ export function MedicineRow({ medicine, onPress }: Props) {
     .filter((part) => Boolean(part && String(part).trim().length > 0))
     .join(' · ');
 
+  const pendingSync = isPendingMedicineId(medicine.id);
+  const visibleTags = medicine.tags.slice(0, 3);
+  const restTagCount = medicine.tags.length - visibleTags.length;
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -50,11 +55,30 @@ export function MedicineRow({ medicine, onPress }: Props) {
 
         {meta ? <AppText variant="caption">{meta}</AppText> : null}
 
-        <AppText color={colors.textSubtle} variant="caption">
-          {medicine.lastTakenAt
-            ? `上次服药 ${formatLocalDateTime(medicine.lastTakenAt)}`
-            : '还没有服药记录'}
-        </AppText>
+        {medicine.tags.length > 0 ? (
+          <View style={styles.tags}>
+            {visibleTags.map((tag) => (
+              <Chip key={tag} label={tag} size="sm" />
+            ))}
+            {restTagCount > 0 ? (
+              <AppText color={colors.textSubtle} variant="caption">
+                +{restTagCount}
+              </AppText>
+            ) : null}
+          </View>
+        ) : null}
+
+        {pendingSync ? (
+          <AppText color={colors.warningText} variant="caption">
+            离线新建 · 联网后自动补同步
+          </AppText>
+        ) : (
+          <AppText color={colors.textSubtle} variant="caption">
+            {medicine.lastTakenAt
+              ? `上次服药 ${formatLocalDateTime(medicine.lastTakenAt)}`
+              : '还没有服药记录'}
+          </AppText>
+        )}
       </View>
     </Pressable>
   );
@@ -74,4 +98,5 @@ const styles = StyleSheet.create({
   body: { flex: 1, gap: 2, padding: spacing.lg },
   top: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm },
   name: { flex: 1 },
+  tags: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
 });

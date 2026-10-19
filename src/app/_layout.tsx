@@ -9,6 +9,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider } from '@/providers/auth-provider';
 import { NotificationBridge } from '@/providers/notification-bridge';
+import { OutboxBridge } from '@/providers/outbox-bridge';
 import { QueryProvider } from '@/providers/query-provider';
 import { colors } from '@/shared/ui';
 
@@ -40,6 +41,7 @@ export default function RootLayout() {
           <AuthProvider>
             <ThemeProvider value={navigationTheme}>
               <NotificationBridge />
+              <OutboxBridge />
               <Stack
                 screenOptions={{
                   headerShown: false,

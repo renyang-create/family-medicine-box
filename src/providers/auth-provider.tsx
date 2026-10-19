@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import type { PropsWithChildren } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 
+import { clearOutbox } from '@/features/sync/outbox';
 import { supabase } from '@/lib/supabase';
 
 type AuthState = {
@@ -36,6 +37,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setState({ session, isBootstrapped: true });
       if (event === 'SIGNED_OUT') {
         queryClient.clear();
+        // 离线队列不跨账号：否则会把上一个账号的修改重放到下一个账号
+        void clearOutbox();
       }
     });
 

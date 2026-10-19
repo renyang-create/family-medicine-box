@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { sanitizeTags } from '@/shared/domain/tags';
 
 /** 跨药箱的药品概览：用于首页过期徽标、提醒列表、全局搜索 */
 export type MedicineOverview = {
@@ -7,6 +8,7 @@ export type MedicineOverview = {
   boxName: string;
   name: string;
   expireDate: string | null;
+  tags: string[];
 };
 
 type OverviewRow = {
@@ -14,6 +16,7 @@ type OverviewRow = {
   box_id: string;
   name: string;
   expire_date: string | null;
+  tags?: string[] | null;
   medicine_boxes: { name: string } | null;
 };
 
@@ -24,7 +27,7 @@ type OverviewRow = {
 export async function fetchMedicineOverview(): Promise<MedicineOverview[]> {
   const { data, error } = await supabase
     .from('medicines')
-    .select('id, box_id, name, expire_date, medicine_boxes ( name )')
+    .select('id, box_id, name, expire_date, tags, medicine_boxes ( name )')
     .eq('is_deleted', false)
     .order('name', { ascending: true });
 
@@ -36,5 +39,6 @@ export async function fetchMedicineOverview(): Promise<MedicineOverview[]> {
     boxName: row.medicine_boxes?.name ?? '未命名药箱',
     name: row.name,
     expireDate: row.expire_date,
+    tags: sanitizeTags(row.tags),
   }));
 }

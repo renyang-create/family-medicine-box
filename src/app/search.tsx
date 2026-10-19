@@ -27,7 +27,11 @@ function ResultRow({ item, onPress }: { item: MedicineOverview; onPress: () => v
         <AppText numberOfLines={1} variant="bodyStrong">
           {item.name}
         </AppText>
-        <AppText variant="caption">{item.boxName}</AppText>
+        <AppText variant="caption">
+          {(item.tags ?? []).length > 0
+            ? `${item.boxName} · ${(item.tags ?? []).join('、')}`
+            : item.boxName}
+        </AppText>
       </View>
       <ExpiryBadge expireDate={item.expireDate} />
       <Ionicons color={colors.textSubtle} name="chevron-forward" size={16} />
@@ -46,9 +50,14 @@ export default function SearchScreen() {
 
   const trimmed = keyword.trim().toLowerCase();
 
+  // 名称或症状标签命中都算：搜「发烧」能翻出退烧药
   const results = useMemo(() => {
     if (!trimmed) return [];
-    return (overview.data ?? []).filter((item) => item.name.toLowerCase().includes(trimmed));
+    return (overview.data ?? []).filter(
+      (item) =>
+        item.name.toLowerCase().includes(trimmed) ||
+        (item.tags ?? []).some((tag) => tag.toLowerCase().includes(trimmed)),
+    );
   }, [overview.data, trimmed]);
 
   return (
@@ -61,7 +70,7 @@ export default function SearchScreen() {
           autoFocus
           autoCorrect={false}
           onChangeText={setKeyword}
-          placeholder="输入药品名称，比如「布洛芬」"
+          placeholder="药品名称或症状，比如「布洛芬」「发烧」"
           placeholderTextColor={colors.textSubtle}
           style={styles.input}
           value={keyword}
@@ -81,7 +90,10 @@ export default function SearchScreen() {
           title="输入关键字开始搜索"
         />
       ) : results.length === 0 ? (
-        <EmptyState description={`没有名称包含「${keyword.trim()}」的药品`} title="没有找到" />
+        <EmptyState
+          description={`没有名称或症状标签包含「${keyword.trim()}」的药品`}
+          title="没有找到"
+        />
       ) : (
         <View style={styles.list}>
           <AppText variant="caption">找到 {results.length} 个结果</AppText>

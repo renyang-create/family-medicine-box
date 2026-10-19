@@ -39,9 +39,13 @@ export function NotificationBridge() {
 
   useEffect(() => {
     if (!session || Platform.OS === 'web') return;
-    void reconcileReminders().catch(() => {
-      // 对账失败不打断用户，下次启动会再试
-    });
+    // 先确保渠道（含旧渠道迁移）完成，再对账重排，否则可能读到刚被取消的通知
+    void ensureAndroidChannel()
+      .catch(() => undefined)
+      .then(() => reconcileReminders())
+      .catch(() => {
+        // 对账失败不打断用户，下次启动会再试
+      });
   }, [session]);
 
   return null;

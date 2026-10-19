@@ -2,6 +2,7 @@ export { AppText } from './app-text';
 export type { TextVariant } from './app-text';
 export { Button } from './button';
 export { Card } from './card';
+export { Chip } from './chip';
 export { EmptyState } from './empty-state';
 export { PageHeader } from './page-header';
 export { Screen } from './screen';

@@ -24,8 +24,14 @@ const CORS_HEADERS = {
 
 const DAILY_LIMIT = 20;
 const MAX_QUESTION_CHARS = 300;
-const MAX_OUTPUT_TOKENS = 400;
-const UPSTREAM_TIMEOUT_MS = 8000;
+/**
+ * 输出上限。
+ * GLM-5 系列是「先思考再回答」的模型，思考过程也会占 token；
+ * 给小了会出现 finish_reason=length、content 为空的情况（日志里就是这个），
+ * 所以第一次给 1500，被截断时再翻倍重试一次。
+ */
+const MAX_OUTPUT_TOKENS = 1500;
+const UPSTREAM_TIMEOUT_MS = 20000;
 
 /**
  * 系统提示词只存在服务端。
@@ -92,6 +98,7 @@ Deno.serve(async (req: Request) => {
     const apiKey = Deno.env.get('AI_API_KEY');
     if (!apiKey) {
       // 没配 key 时不扣额度，直接让前端走本地常识库
+      console.error('[ai-chat] AI_API_KEY 未配置');
       return json({ ok: false, code: 'AI_NOT_CONFIGURED' });
     }
 
@@ -101,6 +108,8 @@ Deno.serve(async (req: Request) => {
     });
 
     if (quotaError) {
+      // 常见原因：T9 迁移没跑（consume_ai_quota 不存在）
+      console.error('[ai-chat] 扣额度失败', quotaError.message);
       return json({ ok: false, code: 'QUOTA_ERROR' });
     }
 
@@ -128,36 +137,64 @@ Deno.serve(async (req: Request) => {
       { role: 'user', content: question },
     ];
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+    let answer = '';
 
-    let upstream: Response;
-    try {
-      upstream = await fetch(`${baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model,
-          messages,
-          temperature: 0.3,
-          max_tokens: MAX_OUTPUT_TOKENS,
-        }),
-        signal: controller.signal,
-      });
-    } finally {
+    // 两轮：第二轮只在「被长度截断」时用，给思考型模型留够空间
+    for (const maxTokens of [MAX_OUTPUT_TOKENS, MAX_OUTPUT_TOKENS * 2]) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+
+      let upstream: Response;
+      try {
+        upstream = await fetch(`${baseUrl}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model,
+            messages,
+            temperature: 0.3,
+            max_tokens: maxTokens,
+          }),
+          signal: controller.signal,
+        });
+      } catch (error) {
+        clearTimeout(timer);
+        await supabase.rpc('refund_ai_quota');
+        console.error(
+          `[ai-chat] 请求上游失败 model=${model} max_tokens=${maxTokens} err=${error instanceof Error ? error.message : String(error)}`,
+        );
+        return json({ ok: false, code: 'NETWORK_TIMEOUT' });
+      }
+
       clearTimeout(timer);
-    }
 
-    if (!upstream.ok) {
-      await supabase.rpc('refund_ai_quota');
-      return json({ ok: false, code: 'UPSTREAM_ERROR' });
-    }
+      if (!upstream.ok) {
+        await supabase.rpc('refund_ai_quota');
+        // 只写服务端日志（不含 key），方便在 Dashboard → Edge Functions → Logs 里定位
+        const detail = await upstream.text().catch(() => '');
+        console.error(
+          `[ai-chat] 上游失败 status=${upstream.status} model=${model} url=${baseUrl}/chat/completions body=${detail.slice(0, 300)}`,
+        );
+        return json({ ok: false, code: 'UPSTREAM_ERROR', status: upstream.status });
+      }
 
-    const data = await upstream.json();
-    const answer = String(data?.choices?.[0]?.message?.content ?? '').trim();
+      const data = await upstream.json();
+      const choice = data?.choices?.[0];
+      const finishReason = String(choice?.finish_reason ?? '');
+      answer = String(choice?.message?.content ?? '').trim();
+
+      if (answer) break;
+
+      console.error(
+        `[ai-chat] 上游返回空内容 model=${model} max_tokens=${maxTokens} finish=${finishReason} has_reasoning=${Boolean(choice?.message?.reasoning_content)} body=${JSON.stringify(data).slice(0, 300)}`,
+      );
+
+      // 只有「被长度截断」值得再试一次；其它空内容直接放弃
+      if (finishReason !== 'length') break;
+    }
 
     if (!answer) {
       await supabase.rpc('refund_ai_quota');
@@ -170,8 +207,9 @@ Deno.serve(async (req: Request) => {
       model,
       remaining: Number(quota.remaining ?? 0),
     });
-  } catch {
-    // 任何内部异常都不把细节返回给客户端
+  } catch (error) {
+    // 细节只写服务端日志，返回给客户端的仍是稳定错误码
+    console.error('[ai-chat] 内部异常', error instanceof Error ? error.message : String(error));
     return json({ ok: false, code: 'INTERNAL_ERROR' }, 500);
   }
 });

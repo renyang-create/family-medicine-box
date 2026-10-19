@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import type { ExpiryStatus } from '@/shared/domain/expiry';
+import { sanitizeTags } from '@/shared/domain/tags';
 
 import type { Medicine, MedicineInput, MedicineRow } from './types';
 
@@ -25,6 +26,7 @@ function toMedicine(row: MedicineRow): Medicine {
     expiryStatus: row.expiry_status as ExpiryStatus,
     notes: row.notes,
     lastTakenAt: row.last_taken_at,
+    tags: sanitizeTags(row.tags),
   };
 }
 
@@ -40,6 +42,27 @@ function toRowPayload(input: MedicineInput) {
     produced_on: toNullable(input.producedOn),
     expire_date: toNullable(input.expireDate),
     notes: toNullable(input.notes),
+    tags: sanitizeTags(input.tags),
+  };
+}
+
+/**
+ * 界面对象 → 写库入参。
+ * 用于「批量改某个字段」（比如标签改名）：拿现有药品补全表单，只改一个字段再写回。
+ */
+export function medicineToInput(medicine: Medicine, tags: string[] = medicine.tags): MedicineInput {
+  return {
+    name: medicine.name,
+    spec: medicine.spec ?? '',
+    quantity: medicine.quantity,
+    unit: medicine.unit ?? '',
+    dosage: medicine.dosage ?? '',
+    storageLocation: medicine.storageLocation ?? '',
+    batchNo: medicine.batchNo ?? '',
+    producedOn: medicine.producedOn ?? '',
+    expireDate: medicine.expireDate ?? '',
+    notes: medicine.notes ?? '',
+    tags,
   };
 }
 

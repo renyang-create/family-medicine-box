@@ -16,6 +16,8 @@ export type MedicineRow = {
   expiry_status: string;
   notes: string | null;
   last_taken_at: string | null;
+  /** 症状标签；老数据可能没有这一列，所以按可选处理 */
+  tags?: string[] | null;
   is_deleted: boolean;
   created_at: string;
   updated_at: string;
@@ -37,6 +39,7 @@ export type Medicine = {
   expiryStatus: ExpiryStatus;
   notes: string | null;
   lastTakenAt: string | null;
+  tags: string[];
 };
 
 export type MedicineInput = {
@@ -50,4 +53,5 @@ export type MedicineInput = {
   producedOn?: string;
   expireDate?: string;
   notes?: string;
+  tags?: string[];
 };

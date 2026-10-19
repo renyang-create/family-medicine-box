@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { z } from 'zod';
 
-import { AppText, Button, Card, TextField, colors, spacing } from '@/shared/ui';
+import { MAX_TAGS_PER_MEDICINE, MAX_TAG_LENGTH, SYMPTOM_TAGS } from '@/shared/constants/tags';
+import { hasTag, normalizeTag, sanitizeTags, toggleTag } from '@/shared/domain/tags';
+import { AppText, Button, Card, Chip, TextField, colors, spacing } from '@/shared/ui';
 
 import type { Medicine, MedicineInput } from './types';
 
@@ -58,7 +60,33 @@ export function MedicineForm({ initial, submitting, submitLabel, serverError, on
   const [producedOn, setProducedOn] = useState(initial?.producedOn ?? '');
   const [expireDate, setExpireDate] = useState(initial?.expireDate ?? '');
   const [notes, setNotes] = useState(initial?.notes ?? '');
+  const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
+  const [tagInput, setTagInput] = useState('');
+  const [tagError, setTagError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // 预设词 + 已选的自定义词，保证编辑时自定义标签也能看到
+  const tagOptions = useMemo(() => sanitizeTags([...SYMPTOM_TAGS, ...tags]), [tags]);
+
+  function pickTag(raw: string) {
+    const tag = normalizeTag(raw);
+    if (!tag) return;
+
+    const next = toggleTag(tags, tag);
+    // 已达上限：长度没变且原本没有这个标签
+    if (next.length === tags.length && !hasTag(tags, tag)) {
+      setTagError(`最多选 ${MAX_TAGS_PER_MEDICINE} 个标签`);
+      return;
+    }
+
+    setTagError(null);
+    setTags(next);
+  }
+
+  function handleAddTag() {
+    pickTag(tagInput);
+    setTagInput('');
+  }
 
   function handlePress() {
     const parsed = formSchema.safeParse({
@@ -91,6 +119,7 @@ export function MedicineForm({ initial, submitting, submitLabel, serverError, on
       producedOn: parsed.data.producedOn,
       expireDate: parsed.data.expireDate,
       notes: parsed.data.notes,
+      tags,
     });
   }
 
@@ -182,6 +211,49 @@ export function MedicineForm({ initial, submitting, submitLabel, serverError, on
           value={notes}
         />
 
+        <View style={styles.tagSection}>
+          <AppText variant="bodyStrong">症状标签</AppText>
+          <AppText variant="caption">比如发烧、咳嗽；用来在药箱里按症状筛药</AppText>
+
+          <View style={styles.tagWrap}>
+            {tagOptions.map((tag) => (
+              <Chip
+                key={tag}
+                label={tag}
+                onPress={() => pickTag(tag)}
+                selected={hasTag(tags, tag)}
+              />
+            ))}
+          </View>
+
+          <View style={styles.row}>
+            <View style={styles.flex}>
+              <TextField
+                label="自定义标签"
+                maxLength={MAX_TAG_LENGTH}
+                onChangeText={setTagInput}
+                onSubmitEditing={handleAddTag}
+                placeholder="比如「备用药」"
+                returnKeyType="done"
+                value={tagInput}
+              />
+            </View>
+            <View style={styles.addTagButton}>
+              <Button label="添加" onPress={handleAddTag} variant="secondary" />
+            </View>
+          </View>
+
+          {tagError ? (
+            <AppText color={colors.dangerText} variant="caption">
+              {tagError}
+            </AppText>
+          ) : (
+            <AppText variant="caption">
+              已选 {tags.length}/{MAX_TAGS_PER_MEDICINE} 个
+            </AppText>
+          )}
+        </View>
+
         {serverError ? (
           <AppText color={colors.dangerText} variant="caption">
             {serverError}
@@ -205,4 +277,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   unitField: { width: 96 },
   notes: { minHeight: 80, paddingTop: spacing.sm, textAlignVertical: 'top' },
+  tagSection: { gap: spacing.sm },
+  tagWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  addTagButton: { justifyContent: 'flex-end', paddingBottom: spacing.xs },
 });
