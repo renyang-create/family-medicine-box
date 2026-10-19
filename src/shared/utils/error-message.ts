@@ -16,6 +16,11 @@ const RPC_MESSAGES: Record<string, string> = {
   CANNOT_TRANSFER_TO_SELF: '不能转让给自己',
   TARGET_NOT_MEMBER: '对方不是这个药箱的成员',
   CANNOT_REMOVE_SELF: '不能移除你自己',
+  MEDICINE_NOT_FOUND: '药品不存在或已被删除',
+  DOSAGE_INVALID: '剂量必须大于 0',
+  TAKEN_AT_FUTURE: '服药时间不能晚于现在',
+  LOG_NOT_FOUND: '这条服药记录不存在或已经撤销',
+  NOT_ALLOWED: '你没有权限操作这条记录',
 };
 
 const AUTH_PATTERNS: { pattern: RegExp; text: string }[] = [

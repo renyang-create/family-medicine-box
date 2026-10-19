@@ -1,8 +1,13 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
+import { useMyBoxes } from '@/features/boxes/hooks';
 import { ExpiryBadge } from '@/features/medicines/expiry-badge';
 import { useDeleteMedicine, useMedicine } from '@/features/medicines/hooks';
+import { useRecordUsage, useUndoUsage, useUsageLogs } from '@/features/medicines/usage-hooks';
+import type { UsageLog } from '@/features/medicines/usage-api';
+import { useAuth } from '@/providers/auth-provider';
 import {
   AppText,
   Button,
@@ -10,10 +15,12 @@ import {
   EmptyState,
   PageHeader,
   Screen,
+  TextField,
   colors,
   spacing,
 } from '@/shared/ui';
 import { confirmDialog, showMessage } from '@/shared/utils/dialog';
+import { formatLocalDateTime } from '@/shared/utils/datetime';
 import { toUserMessage } from '@/shared/utils/error-message';
 import { formatQuantity } from '@/shared/utils/number';
 
@@ -28,13 +35,99 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function UsageLogRow({
+  log,
+  canUndo,
+  onUndo,
+}: {
+  log: UsageLog;
+  canUndo: boolean;
+  onUndo: () => void;
+}) {
+  return (
+    <View style={styles.logRow}>
+      <View style={styles.logText}>
+        <AppText variant="bodyStrong">
+          {formatLocalDateTime(log.takenAt)}
+          {log.userName ? ` · ${log.userName}` : ''}
+        </AppText>
+        <AppText variant="caption">
+          剂量 {formatQuantity(log.dosageAmount)}
+          {log.quantityDeducted > 0 ? ` · 扣减 ${formatQuantity(log.quantityDeducted)}` : ' · 库存为 0 未扣减'}
+          {log.note ? ` · ${log.note}` : ''}
+        </AppText>
+      </View>
+      {canUndo ? (
+        <Pressable accessibilityRole="button" hitSlop={8} onPress={onUndo}>
+          <AppText color={colors.dangerText} variant="caption">
+            撤销
+          </AppText>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
 export default function MedicineDetailScreen() {
   const router = useRouter();
+  const { session } = useAuth();
   const { boxId, medicineId } = useLocalSearchParams<{ boxId: string; medicineId: string }>();
 
   const medicineQuery = useMedicine(medicineId ?? '');
-  const deleteMedicine = useDeleteMedicine(boxId ?? '');
   const medicine = medicineQuery.data;
+
+  const boxesQuery = useMyBoxes();
+  const isCreator = boxesQuery.data?.find((item) => item.boxId === boxId)?.role === 'creator';
+
+  const logsQuery = useUsageLogs(medicineId ?? '');
+  const recordUsage = useRecordUsage(boxId ?? '', medicineId ?? '');
+  const undoUsage = useUndoUsage(boxId ?? '', medicineId ?? '');
+  const deleteMedicine = useDeleteMedicine(boxId ?? '');
+
+  const [dosage, setDosage] = useState('1');
+  const [note, setNote] = useState('');
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [recordError, setRecordError] = useState<string | null>(null);
+
+  async function handleRecord() {
+    const parsedDosage = Number(dosage);
+    if (!Number.isFinite(parsedDosage) || parsedDosage <= 0) {
+      setRecordError('剂量必须大于 0');
+      return;
+    }
+
+    setRecordError(null);
+    setFeedback(null);
+    try {
+      const result = await recordUsage.mutateAsync({ dosage: parsedDosage, note });
+      const unit = medicine?.unit ?? '';
+      setFeedback(
+        result.quantityDeducted > 0
+          ? `已记录，扣减 ${formatQuantity(result.quantityDeducted)}${unit}，剩余 ${formatQuantity(result.quantityLeft)}${unit}`
+          : `已记录。当前库存为 0，本次没有扣减数量`,
+      );
+      setNote('');
+    } catch (cause) {
+      setRecordError(toUserMessage(cause));
+    }
+  }
+
+  async function handleUndo(logId: string) {
+    const confirmed = await confirmDialog({
+      title: '撤销这条服药记录',
+      message: '撤销后会把扣减的数量加回库存。',
+      confirmText: '撤销',
+      destructive: true,
+    });
+    if (!confirmed) return;
+
+    try {
+      await undoUsage.mutateAsync(logId);
+      setFeedback('已撤销，库存已回补');
+    } catch (cause) {
+      showMessage('撤销失败', toUserMessage(cause));
+    }
+  }
 
   async function handleDelete() {
     const confirmed = await confirmDialog({
@@ -75,6 +168,9 @@ export default function MedicineDetailScreen() {
     );
   }
 
+  const unit = medicine.unit ?? '';
+  const logs = logsQuery.data ?? [];
+
   return (
     <Screen>
       <PageHeader onBack={() => router.back()} title={medicine.name} />
@@ -88,7 +184,7 @@ export default function MedicineDetailScreen() {
         <InfoRow label="规格" value={medicine.spec ?? '未填写'} />
         <InfoRow
           label="剩余数量"
-          value={`${formatQuantity(medicine.quantity)}${medicine.unit ?? ''}`}
+          value={`${formatQuantity(medicine.quantity)}${unit}`}
         />
         <InfoRow label="用法用量" value={medicine.dosage ?? '未填写'} />
         <InfoRow label="存放位置" value={medicine.storageLocation ?? '未填写'} />
@@ -98,7 +194,71 @@ export default function MedicineDetailScreen() {
         <InfoRow label="备注" value={medicine.notes ?? '未填写'} />
       </Card>
 
-      <EmptyState description="「记录本次服药」与服药历史将在 T5 接入。" title="服药历史" />
+      <Card style={styles.recordCard}>
+        <AppText variant="subtitle">记录本次服药</AppText>
+        <View style={styles.recordRow}>
+          <View style={styles.flex}>
+            <TextField
+              keyboardType="decimal-pad"
+              label={`本次剂量${unit ? `（${unit}）` : ''}`}
+              onChangeText={setDosage}
+              placeholder="1"
+              value={dosage}
+            />
+          </View>
+          <View style={styles.flexLarge}>
+            <TextField
+              label="备注"
+              maxLength={60}
+              onChangeText={setNote}
+              placeholder="选填，比如「饭后」"
+              value={note}
+            />
+          </View>
+        </View>
+
+        {recordError ? (
+          <AppText color={colors.dangerText} variant="caption">
+            {recordError}
+          </AppText>
+        ) : null}
+        {feedback ? (
+          <AppText color={colors.success} variant="caption">
+            {feedback}
+          </AppText>
+        ) : null}
+
+        <Button
+          disabled={recordUsage.isPending}
+          label={recordUsage.isPending ? '记录中…' : '记录本次服药'}
+          onPress={handleRecord}
+        />
+        <AppText variant="caption">
+          记录后会自动扣减库存；库存为 0 时只写记录、不再扣减。
+        </AppText>
+      </Card>
+
+      <Card style={styles.historyCard}>
+        <View style={styles.historyHeader}>
+          <AppText variant="subtitle">服药历史</AppText>
+          <AppText variant="caption">{logs.length > 0 ? `最近 ${logs.length} 条` : ''}</AppText>
+        </View>
+
+        {logsQuery.isLoading ? (
+          <ActivityIndicator color={colors.primary} />
+        ) : logs.length === 0 ? (
+          <AppText variant="caption">还没有服药记录</AppText>
+        ) : (
+          logs.map((log) => (
+            <UsageLogRow
+              canUndo={log.userId === session?.user.id || isCreator}
+              key={log.id}
+              log={log}
+              onUndo={() => void handleUndo(log.id)}
+            />
+          ))
+        )}
+      </Card>
 
       <Button
         label="编辑药品"
@@ -133,4 +293,23 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   value: { flex: 1, textAlign: 'right' },
+  recordCard: { gap: spacing.md },
+  recordRow: { flexDirection: 'row', gap: spacing.md },
+  flex: { width: 120 },
+  flexLarge: { flex: 1 },
+  historyCard: { gap: spacing.sm },
+  historyHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  logRow: {
+    alignItems: 'center',
+    borderTopColor: colors.border,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    gap: spacing.md,
+    paddingTop: spacing.sm,
+  },
+  logText: { flex: 1, gap: 2 },
 });
