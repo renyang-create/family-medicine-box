@@ -41,7 +41,8 @@ export async function fetchMyBoxes(): Promise<MyBox[]> {
       name: row.medicine_boxes?.name ?? '未命名药箱',
       role: row.role,
       memberCount: row.medicine_boxes?.member_count ?? 1,
-      inviteCode: row.role === 'creator' ? (row.medicine_boxes?.invite_code ?? null) : null,
+      // 邀请码对箱内成员都可见（方便大家一起拉人）；重置权限仍只给创建者
+      inviteCode: row.medicine_boxes?.invite_code ?? null,
       joinedAt: row.joined_at,
     }));
 }

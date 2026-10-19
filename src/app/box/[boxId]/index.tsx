@@ -1,13 +1,14 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
 import { useMyBoxes } from '@/features/boxes/hooks';
 import { useMedicines } from '@/features/medicines/hooks';
 import { MedicineRow } from '@/features/medicines/medicine-row';
 import { getExpiryStatus } from '@/shared/domain/expiry';
 import { sortMedicines } from '@/shared/domain/medicine-sort';
-import { AppText, Button, Card, EmptyState, PageHeader, Screen, colors, spacing } from '@/shared/ui';
+import { AppText, Button, Card, EmptyState, PageHeader, Screen, colors, radius, spacing } from '@/shared/ui';
 import { formatInviteCodeForDisplay } from '@/shared/utils/normalize-invite-code';
 
 /**
@@ -59,6 +60,22 @@ export default function BoxDetailScreen() {
           </AppText>
         </Card>
       ) : null}
+
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => router.push(`/box/${boxId}/members`)}
+        style={({ pressed }) => [styles.memberEntry, pressed ? styles.pressed : null]}
+      >
+        <Ionicons color={colors.textMuted} name="people-outline" size={18} />
+        <View style={styles.memberEntryText}>
+          <AppText variant="body">成员与邀请码</AppText>
+          <AppText variant="caption">
+            成员 {box.memberCount}/5
+            {box.inviteCode ? ` · 邀请码 ${formatInviteCodeForDisplay(box.inviteCode)}` : ''}
+          </AppText>
+        </View>
+        <Ionicons color={colors.textSubtle} name="chevron-forward" size={16} />
+      </Pressable>
 
       <Button
         label="+ 添加药品"
@@ -116,4 +133,17 @@ const styles = StyleSheet.create({
   },
   loading: { alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xl },
   list: { gap: spacing.md },
+  memberEntry: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  memberEntryText: { flex: 1, gap: 2 },
+  pressed: { opacity: 0.85 },
 });
