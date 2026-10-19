@@ -20,9 +20,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ios: {
     supportsTablet: false,
     bundleIdentifier: 'com.renyang.medicinebox',
+    buildNumber: '1',
   },
   android: {
     package: 'com.renyang.medicinebox',
+    versionCode: 1,
     adaptiveIcon: {
       backgroundColor: '#E6F4FE',
       foregroundImage: './assets/images/android-icon-foreground.png',
