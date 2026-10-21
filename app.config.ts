@@ -11,7 +11,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: '家庭药箱',
   slug: 'family-medicine-box',
-  version: '0.1.0',
+  version: '0.1.1',
   orientation: 'portrait',
   // MVP 先固定浅色主题：过期标红的对比度需要稳定可控，暗色模式放 P2
   userInterfaceStyle: 'light',
@@ -20,11 +20,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ios: {
     supportsTablet: false,
     bundleIdentifier: 'com.renyang.medicinebox',
-    buildNumber: '1',
+    buildNumber: '2',
   },
   android: {
     package: 'com.renyang.medicinebox',
-    versionCode: 1,
+    versionCode: 2,
     adaptiveIcon: {
       backgroundColor: '#E6F4FE',
       foregroundImage: './assets/images/android-icon-foreground.png',
