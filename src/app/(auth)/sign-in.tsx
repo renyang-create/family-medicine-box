@@ -9,16 +9,23 @@ import { toUserMessage } from '@/shared/utils/error-message';
 type Mode = 'sign-in' | 'sign-up';
 
 /**
- * 评委演示账号（只在 Web 端出现入口）。
+ * 示例账号（Web 演示构建专用）。
  *
- * 为什么需要它：Supabase 项目开着「邮箱确认」，评委现场注册收不到邮件就进不来，
- * 演示会直接断在登录页。这个账号在 Supabase 后台预先创建并「Auto Confirm」，
- * 点一下就能进到药箱主界面。
+ * 为什么需要它：项目开着「邮箱确认」，第一次打开的人注册后收不到邮件就停在登录页，
+ * 看不到产品。示例账号在后台预先创建并 Auto Confirm，点一下就能进主界面。
  *
- * 取舍说明：密码写在前端 bundle 里等于公开。这里接受这个风险，因为它是一个
- * 只读演示账号 —— 不要往它里面放任何真实药品数据，数据被改就重新建库或清空。
+ * 边界（重要）：
+ * 1. 入口只在 Web 出现，原生 App 永远没有 —— 产品里不出现任何演示/赛事物料；
+ * 2. 正式 Web 版可用 EXPO_PUBLIC_DEMO_ENTRY=0 关掉；
+ * 3. 账号里只能放示例数据，被改乱直接清空重建。
+ *
+ * 取舍：密码会进前端 bundle，等于公开。这是「体验模式」的常规代价，
+ * 接受它的前提是里面没有任何真实数据。
  */
 const DEMO_ACCOUNT = { email: 'demo@medicinebox.app', password: 'MedicineBox2026' };
+
+/** 示例入口是否出现：仅 Web，且允许用 EXPO_PUBLIC_DEMO_ENTRY=0 关闭 */
+const SHOW_DEMO_ENTRY = Platform.OS === 'web' && process.env.EXPO_PUBLIC_DEMO_ENTRY !== '0';
 
 const signInSchema = z.object({
   email: z.string().trim().min(1, '请填写邮箱').email('邮箱格式不正确'),
@@ -98,7 +105,7 @@ export default function SignInScreen() {
     try {
       await signInWithPassword(DEMO_ACCOUNT.email, DEMO_ACCOUNT.password);
     } catch {
-      setError('演示账号还没初始化，请先用邮箱注册，或联系作者开通演示账号。');
+      setError('示例账号暂不可用，请用邮箱注册后登录。');
     } finally {
       setSubmitting(false);
     }
@@ -181,13 +188,13 @@ export default function SignInScreen() {
         />
       </Card>
 
-      {Platform.OS === 'web' ? (
+      {SHOW_DEMO_ENTRY ? (
         <Pressable disabled={submitting} onPress={handleDemo} style={styles.demo}>
           <AppText variant="bodyStrong" color={colors.primary}>
-            评委演示：一键进入示例药箱
+            免注册体验
           </AppText>
           <AppText variant="caption" color={colors.textMuted}>
-            无需注册，直接查看药品、有效期预警与「任阳」问答
+            进入示例药箱，内置常见药品、临期提醒与 AI 问答
           </AppText>
         </Pressable>
       ) : null}
