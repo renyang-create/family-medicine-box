@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { z } from 'zod';
 
 import { signInWithPassword, signUpWithPassword } from '@/features/auth/api';
@@ -7,6 +7,18 @@ import { AppText, Button, Card, Screen, TextField, colors, radius, spacing } fro
 import { toUserMessage } from '@/shared/utils/error-message';
 
 type Mode = 'sign-in' | 'sign-up';
+
+/**
+ * 评委演示账号（只在 Web 端出现入口）。
+ *
+ * 为什么需要它：Supabase 项目开着「邮箱确认」，评委现场注册收不到邮件就进不来，
+ * 演示会直接断在登录页。这个账号在 Supabase 后台预先创建并「Auto Confirm」，
+ * 点一下就能进到药箱主界面。
+ *
+ * 取舍说明：密码写在前端 bundle 里等于公开。这里接受这个风险，因为它是一个
+ * 只读演示账号 —— 不要往它里面放任何真实药品数据，数据被改就重新建库或清空。
+ */
+const DEMO_ACCOUNT = { email: 'demo@medicinebox.app', password: 'MedicineBox2026' };
 
 const signInSchema = z.object({
   email: z.string().trim().min(1, '请填写邮箱').email('邮箱格式不正确'),
@@ -74,6 +86,19 @@ export default function SignInScreen() {
       await signInWithPassword(parsed.data.email, parsed.data.password);
     } catch (cause) {
       setError(toUserMessage(cause));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleDemo() {
+    setError(null);
+    setNotice(null);
+    setSubmitting(true);
+    try {
+      await signInWithPassword(DEMO_ACCOUNT.email, DEMO_ACCOUNT.password);
+    } catch {
+      setError('演示账号还没初始化，请先用邮箱注册，或联系作者开通演示账号。');
     } finally {
       setSubmitting(false);
     }
@@ -156,6 +181,17 @@ export default function SignInScreen() {
         />
       </Card>
 
+      {Platform.OS === 'web' ? (
+        <Pressable disabled={submitting} onPress={handleDemo} style={styles.demo}>
+          <AppText variant="bodyStrong" color={colors.primary}>
+            评委演示：一键进入示例药箱
+          </AppText>
+          <AppText variant="caption" color={colors.textMuted}>
+            无需注册，直接查看药品、有效期预警与「任阳」问答
+          </AppText>
+        </Pressable>
+      ) : null}
+
       <AppText variant="caption" style={styles.footer}>
         第一次使用请先点上面的「注册」。账号只用来同步你和家人的药箱，不会公开。
       </AppText>
@@ -181,4 +217,13 @@ const styles = StyleSheet.create({
   switchActive: { backgroundColor: colors.primary },
   form: { gap: spacing.md },
   footer: { textAlign: 'center' },
+  demo: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.primary,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    gap: 2,
+    padding: spacing.md,
+  },
 });
