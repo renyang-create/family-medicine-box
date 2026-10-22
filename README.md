@@ -2,6 +2,9 @@
 
 和家人共享一个药箱：药品、有效期、服药记录、吃药提醒，以及一个接了大模型的 AI 助手「任阳」。
 
+**在线演示（浏览器直接打开，无需安装、无需注册）**：<https://renyang-create.github.io/>
+点「评委演示：一键进入示例药箱」即可进入，数据为演示数据。
+
 安卓内测版下载（APK，需在系统浏览器里打开）：
 **https://renyang-create.github.io/medicine-box-apk/**
 
